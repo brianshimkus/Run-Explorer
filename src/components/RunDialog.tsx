@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRun, setReviewed } from "../api";
 import type { Run } from "../domain";
+import { ExplanationPanel } from "./ExplanationPanel";
 import { Timeline } from "./Timeline";
 export function RunDialog({
   id,
@@ -34,6 +35,24 @@ export function RunDialog({
       if (previous?.isConnected) previous.focus();
     };
   }, []);
+  const review = useMutation({
+    mutationFn: (reviewed: boolean) => setReviewed(id, reviewed, scenario),
+    onMutate: async (reviewed) => {
+      await client.cancelQueries({ queryKey: key });
+      const previous = client.getQueryData<Run>(key);
+      if (previous) client.setQueryData(key, { ...previous, reviewed });
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) client.setQueryData(key, context.previous);
+    },
+    onSettled: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: key }),
+        client.invalidateQueries({ queryKey: ["runs"] }),
+      ]);
+    },
+  });
   return (
     <dialog
       ref={dialog}
@@ -76,6 +95,28 @@ export function RunDialog({
             {query.isFetching ? "Refreshing…" : "Latest received snapshot"}
           </p>
           <Timeline run={query.data} />
+          {query.data.status === "failed" && (
+            <ExplanationPanel id={id} scenario={scenario} />
+          )}
+          <div className="review-control">
+            <span>{query.data.reviewed ? "Reviewed" : "Unreviewed"}</span>
+            <button
+              disabled={review.isPending}
+              onClick={() => review.mutate(!query.data!.reviewed)}
+            >
+              {review.isPending
+                ? "Saving…"
+                : query.data.reviewed
+                  ? "Mark unreviewed"
+                  : "Mark reviewed"}
+            </button>
+          </div>
+          {review.isError && (
+            <p role="alert">
+              Review was not saved. Your previous value was restored.{" "}
+              {review.error.message}
+            </p>
+          )}
         </>
       )}
     </dialog>
