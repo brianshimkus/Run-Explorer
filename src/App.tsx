@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRuns, mockMode, setReadToken } from "./api";
 import { useUrl } from "./url";
 import { RunTable } from "./components/RunTable";
+import { RunDialog } from "./components/RunDialog";
 export default function App() {
   const { filters, selectedId, update } = useUrl();
   const [draft, setDraft] = useState(filters.q);
@@ -209,8 +210,13 @@ export default function App() {
             Durations are reported values. Synthetic timelines are illustrative.
           </span>
         </footer>
-        {selectedId && (
-          <p>Selected {selectedId}. Detail inspection comes next.</p>
+        {selectedId && connected && (
+          <RunDialog
+            key={selectedId + filters.scenario}
+            id={selectedId}
+            scenario={filters.scenario}
+            onClose={() => update({ run: null })}
+          />
         )}
       </main>
     </>
